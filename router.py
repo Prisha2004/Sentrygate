@@ -13,31 +13,50 @@ class UniversalRouter:
         self.http_client = httpx.AsyncClient(timeout=45.0)
 
     def select_model(self, prompt: str, requested_model: str = "sentry-auto") -> Tuple[str, str]:
-        # On Cloud (Render) where GEMINI_API_KEY exists, always route to Gemini 1.5 Flash
         if GEMINI_API_KEY:
             return "gemini-1.5-flash", "gemini"
-        
-        # On Local Laptop where Ollama is running
         return "gemma3:4b", "ollama"
 
     async def forward_request(self, model: str, messages: List[Dict[str, str]], stream: bool = False) -> Any:
-        payload = {
-            "model": model,
-            "messages": messages,
-            "stream": stream
-        }
+        # Extract user prompt
+        user_prompt = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                user_prompt = m.get("content", "")
+                break
 
-        # Route to Google Gemini Cloud
+        # 1. Native Google Gemini REST Endpoint (100% Stable)
         if GEMINI_API_KEY:
-            url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
-            headers = {
-                "Authorization": f"Bearer {GEMINI_API_KEY}",
-                "Content-Type": "application/json"
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            gemini_payload = {
+                "contents": [{"parts": [{"text": user_prompt}]}]
             }
-        else:
-            # Route to Local Ollama
-            url = f"{OLLAMA_BASE_URL}/chat/completions"
-            headers = {"Content-Type": "application/json"}
+            try:
+                resp = await self.http_client.post(url, json=gemini_payload)
+                resp.raise_for_status()
+                data = resp.json()
+                answer = data["candidates"][0]["content"]["parts"][0]["text"]
+                return {
+                    "model": "gemini-1.5-flash",
+                    "choices": [{
+                        "message": {"role": "assistant", "content": answer}
+                    }]
+                }
+            except Exception as e:
+                return {
+                    "model": "gemini-1.5-flash",
+                    "choices": [{
+                        "message": {
+                            "role": "assistant",
+                            "content": f"⚠️ Gemini Provider Error: {str(e)}"
+                        }
+                    }]
+                }
+
+        # 2. Local Ollama Fallback
+        url = f"{OLLAMA_BASE_URL}/chat/completions"
+        payload = {"model": model, "messages": messages, "stream": stream}
+        headers = {"Content-Type": "application/json"}
 
         try:
             if stream:
@@ -47,12 +66,12 @@ class UniversalRouter:
                 resp.raise_for_status()
                 return resp.json()
         except Exception as e:
-            # Graceful error capture instead of crashing with 500
             return {
+                "model": model,
                 "choices": [{
                     "message": {
                         "role": "assistant",
-                        "content": f"⚠️ SentryGate Routing Notice: Error contacting provider ({model}): {str(e)}"
+                        "content": f"⚠️ Local Provider Error: {str(e)}"
                     }
                 }]
             }
