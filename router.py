@@ -18,40 +18,53 @@ class UniversalRouter:
         return "gemma3:4b", "ollama"
 
     async def forward_request(self, model: str, messages: List[Dict[str, str]], stream: bool = False) -> Any:
-        # Extract user prompt
         user_prompt = ""
         for m in reversed(messages):
             if m.get("role") == "user":
                 user_prompt = m.get("content", "")
                 break
 
-        # 1. Native Google Gemini REST Endpoint (100% Stable)
+        # 1. Native Google Gemini with official header (Fixes AQ. keys)
         if GEMINI_API_KEY:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
+            endpoints_to_try = [
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+            ]
+            headers = {
+                "x-goog-api-key": GEMINI_API_KEY,
+                "Content-Type": "application/json"
+            }
             gemini_payload = {
                 "contents": [{"parts": [{"text": user_prompt}]}]
             }
-            try:
-                resp = await self.http_client.post(url, json=gemini_payload)
-                resp.raise_for_status()
-                data = resp.json()
-                answer = data["candidates"][0]["content"]["parts"][0]["text"]
-                return {
-                    "model": "gemini-1.5-flash",
-                    "choices": [{
-                        "message": {"role": "assistant", "content": answer}
-                    }]
-                }
-            except Exception as e:
-                return {
-                    "model": "gemini-1.5-flash",
-                    "choices": [{
-                        "message": {
-                            "role": "assistant",
-                            "content": f"⚠️ Gemini Provider Error: {str(e)}"
-                        }
-                    }]
-                }
+
+            last_error = ""
+            for url in endpoints_to_try:
+                try:
+                    resp = await self.http_client.post(url, headers=headers, json=gemini_payload)
+                    resp.raise_for_status()
+                    data = resp.json()
+                    answer = data["candidates"][0]["content"]["parts"][0]["text"]
+                    return {
+                        "model": "gemini-1.5-flash",
+                        "choices": [{
+                            "message": {"role": "assistant", "content": answer}
+                        }]
+                    }
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            return {
+                "model": "gemini-1.5-flash",
+                "choices": [{
+                    "message": {
+                        "role": "assistant",
+                        "content": f"⚠️ Gemini Error: {last_error}"
+                    }
+                }]
+            }
 
         # 2. Local Ollama Fallback
         url = f"{OLLAMA_BASE_URL}/chat/completions"
