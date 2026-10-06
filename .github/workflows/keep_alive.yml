@@ -1,0 +1,13 @@
+name: Keep SentryGate Awake 24/7
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Live Gateway
+        run: curl -s https://sentrygate-9ght.onrender.com/health > /dev/null
