@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SentryGate — Universal AI Gateway</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    body { background-color: #0B0F17; color: #E2E8F0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    .glass { background: rgba(18, 24, 38, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.08); }
+    .glow-green { box-shadow: 0 0 20px rgba(16, 185, 129, 0.25); }
+    .glow-blue { box-shadow: 0 0 20px rgba(59, 130, 246, 0.25); }
+    /* Prose styling for clean markdown */
+    .prose h1, .prose h2, .prose h3 { font-weight: 700; color: #F8FAFC; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+    .prose p { margin-bottom: 0.5rem; line-height: 1.5; }
+    .prose ul { list-style-type: disc; padding-left: 1.25rem; margin-bottom: 0.5rem; }
+    .prose li { margin-bottom: 0.25rem; }
+    .prose strong { color: #38BDF8; }
+    .prose code { background: rgba(0,0,0,0.3); padding: 2px 5px; border-radius: 4px; font-family: monospace; font-size: 0.85em; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between">
+
+  <!-- TOP NAV -->
+  <header class="border-b border-slate-800/80 glass sticky top-0 z-50 px-6 py-4 flex items-center justify-between">
+    <div class="flex items-center space-x-3">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-500 to-cyan-500 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg">
+        S
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <span class="font-bold text-lg text-white tracking-tight">SentryGate</span>
+          <span class="text-[10px] uppercase font-bold tracking-widest bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/20">v0.1.0 Local</span>
+        </div>
+        <p class="text-xs text-slate-400">Universal AI Gateway & Semantic Memory Engine</p>
+      </div>
+    </div>
+
+    <!-- LIVE METRICS BAR -->
+    <div class="hidden md:flex items-center space-x-6 text-xs">
+      <div class="flex flex-col text-right">
+        <span class="text-slate-400">Total Requests</span>
+        <span id="metric-requests" class="font-bold text-white text-sm">0</span>
+      </div>
+      <div class="h-6 w-px bg-slate-800"></div>
+      <div class="flex flex-col text-right">
+        <span class="text-slate-400">Cache Hit Rate</span>
+        <span id="metric-hitrate" class="font-bold text-emerald-400 text-sm">0%</span>
+      </div>
+      <div class="h-6 w-px bg-slate-800"></div>
+      <div class="flex flex-col text-right">
+        <span class="text-slate-400">Estimated Cost Saved</span>
+        <span id="metric-saved" class="font-bold text-cyan-400 text-sm">$0.00</span>
+      </div>
+      <div class="h-6 w-px bg-slate-800"></div>
+      <div class="flex flex-col text-right">
+        <span class="text-slate-400">Avg Latency</span>
+        <span id="metric-latency" class="font-bold text-slate-300 text-sm">0 ms</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN BODY -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+    <!-- LEFT: CHAT PLAYGROUND (7 Cols) -->
+    <section class="lg:col-span-7 flex flex-col glass rounded-2xl p-5 border border-slate-800">
+      <div class="flex items-center justify-between pb-4 border-b border-slate-800 text-xs">
+        <div class="flex items-center space-x-2">
+          <span class="text-slate-400">Model:</span>
+          <select id="select-model" class="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2 py-1 focus:outline-none focus:border-cyan-500">
+            <option value="sentry-auto">sentry-auto (Smart Router)</option>
+            <option value="gemma3:4b">gemma3:4b (Fast Local)</option>
+            <option value="llama3:latest">llama3:latest (Reasoning)</option>
+          </select>
+        </div>
+        <div class="flex items-center space-x-2">
+          <span class="text-slate-400">Role:</span>
+          <select id="select-role" class="bg-slate-900 border border-slate-700 text-slate-200 rounded-lg px-2 py-1 focus:outline-none">
+            <option value="developer">Developer</option>
+            <option value="analyst">Analyst</option>
+            <option value="executive">Executive</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- CHAT MESSAGE LOG -->
+      <div id="chat-box" class="flex-1 overflow-y-auto py-4 space-y-4 min-h-[380px] max-h-[480px] pr-2">
+        <div class="flex items-start space-x-3">
+          <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold mt-1">AI</div>
+          <div class="bg-slate-800/60 p-3 rounded-2xl rounded-tl-none text-sm text-slate-200 max-w-[85%] border border-slate-700/40">
+            Welcome to <strong>SentryGate</strong>. Ask any question. The first request routes to your local model; asking again or asking similarly returns in milliseconds from the semantic cache!
+          </div>
+        </div>
+      </div>
+
+      <!-- QUICK SUGGESTIONS -->
+      <div class="flex flex-wrap gap-2 py-2 text-xs">
+        <button onclick="setPrompt('What is SentryGate and how does it cut AI costs?')" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full border border-slate-700 transition">What is SentryGate?</button>
+        <button onclick="setPrompt('How do I reset my password?')" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full border border-slate-700 transition">Reset Password Query</button>
+        <button onclick="setPrompt('Write a short Python function for binary search')" class="bg-slate-800/80 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-full border border-slate-700 transition">Python Binary Search</button>
+      </div>
+
+      <!-- INPUT BOX -->
+      <div class="pt-2 flex items-center space-x-2">
+        <input id="prompt-input" type="text" placeholder="Type prompt or test semantic cache..." 
+               class="flex-1 bg-slate-900 border border-slate-700 text-slate-100 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-cyan-500"
+               onkeydown="if(event.key === 'Enter') sendQuery()">
+        <button onclick="sendQuery()" id="btn-send" class="bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 text-slate-950 font-bold px-5 py-3 rounded-xl text-sm transition flex items-center space-x-2 shadow-lg">
+          <span>Send</span>
+          <i class="fa-solid fa-paper-plane text-xs"></i>
+        </button>
+      </div>
+    </section>
+
+    <!-- RIGHT: VERIFICATION DOSSIER & TELEMETRY (5 Cols) -->
+    <aside class="lg:col-span-5 flex flex-col space-y-4">
+      
+      <!-- DOSSIER CARD -->
+      <div class="glass rounded-2xl p-5 border border-slate-800">
+        <div class="flex items-center justify-between mb-4 pb-2 border-b border-slate-800">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-shield-halved text-cyan-400"></i>
+            <h2 class="font-bold text-sm tracking-wide text-white">Verification Dossier</h2>
+          </div>
+          <span id="badge-cache" class="text-xs px-2.5 py-1 rounded-full font-bold bg-slate-800 text-slate-400 border border-slate-700">Awaiting Request</span>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <div class="flex justify-between py-1.5 border-b border-slate-800/60">
+            <span class="text-slate-400">Routing Decision:</span>
+            <span id="dossier-model" class="font-mono font-semibold text-slate-200">—</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-800/60">
+            <span class="text-slate-400">Latency:</span>
+            <span id="dossier-latency" class="font-mono font-semibold text-emerald-400">—</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-800/60">
+            <span class="text-slate-400">Cost Saved ($):</span>
+            <span id="dossier-cost" class="font-mono font-semibold text-cyan-400">—</span>
+          </div>
+          <div class="flex justify-between py-1.5 border-b border-slate-800/60">
+            <span class="text-slate-400">Polarity / Negation Guard:</span>
+            <span id="dossier-polarity" class="font-mono font-semibold text-emerald-400">ACTIVE</span>
+          </div>
+          <div class="flex justify-between py-1.5">
+            <span class="text-slate-400">RBAC Clearance:</span>
+            <span id="dossier-rbac" class="font-mono font-semibold text-slate-200">VERIFIED</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1-MINUTE INTEGRATION CODE -->
+      <div class="glass rounded-2xl p-5 border border-slate-800 flex-1 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center space-x-2 mb-3">
+            <i class="fa-solid fa-code text-emerald-400"></i>
+            <h3 class="font-bold text-xs uppercase tracking-wider text-slate-300">1-Minute Integration</h3>
+          </div>
+          <p class="text-xs text-slate-400 mb-3">Drop into any existing OpenAI SDK code by swapping 1 URL line:</p>
+          <pre class="bg-slate-950 p-3 rounded-xl text-[11px] font-mono text-cyan-300 border border-slate-800/80 overflow-x-auto"><code>from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key="none"
+)
+
+res = client.chat.completions.create(
+    model="sentry-auto",
+    messages=[{"role": "user", "content": "..."}]
+)</code></pre>
+        </div>
+
+        <button onclick="clearSystemCache()" class="mt-4 w-full bg-slate-800/60 hover:bg-slate-700/80 text-rose-400 text-xs py-2 rounded-xl border border-rose-500/20 transition flex items-center justify-center space-x-2">
+          <i class="fa-solid fa-trash-can"></i>
+          <span>Clear Local Cache</span>
+        </button>
+      </div>
+
+    </aside>
+  </main>
+
+  <script>
+    async function updateStats() {
+      try {
+        const res = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('metric-requests').innerText = data.total_requests;
+        document.getElementById('metric-hitrate').innerText = data.hit_rate_pct + '%';
+        document.getElementById('metric-saved').innerText = '$' + data.cost_saved_usd;
+        document.getElementById('metric-latency').innerText = data.avg_latency_ms + ' ms';
+      } catch (err) {}
+    }
+
+    function setPrompt(txt) {
+      document.getElementById('prompt-input').value = txt;
+      sendQuery();
+    }
+
+    async function sendQuery() {
+      const input = document.getElementById('prompt-input');
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = '';
+
+      const chatBox = document.getElementById('chat-box');
+      
+      // User Bubble
+      chatBox.innerHTML += `
+        <div class="flex items-start justify-end space-x-3">
+          <div class="bg-cyan-600/30 p-3 rounded-2xl rounded-tr-none text-sm text-white max-w-[85%] border border-cyan-500/30">
+            ${text}
+          </div>
+        </div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      // Loading indicator
+      const loaderId = 'loader-' + Date.now();
+      chatBox.innerHTML += `
+        <div id="${loaderId}" class="flex items-start space-x-3">
+          <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold mt-1">AI</div>
+          <div class="bg-slate-800/60 p-3 rounded-2xl text-xs text-slate-400 animate-pulse border border-slate-700/40">Thinking & checking cache...</div>
+        </div>`;
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      const model = document.getElementById('select-model').value;
+      const role = document.getElementById('select-role').value;
+
+      try {
+        const res = await fetch('/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-User-Role': role },
+          body: JSON.stringify({
+            model: model,
+            messages: [{ role: 'user', content: text }]
+          })
+        });
+
+        const data = await res.json();
+        document.getElementById(loaderId).remove();
+
+        const rawAnswer = data.choices[0].message.content;
+        const formattedAnswer = marked.parse(rawAnswer);
+        const dossier = data.sentry_dossier || {};
+
+        // Update Dossier Badges
+        const badge = document.getElementById('badge-cache');
+        if (dossier.cache_hit) {
+          badge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 glow-green";
+          badge.innerText = "⚡ CACHE HIT";
+        } else {
+          badge.className = "text-xs px-2.5 py-1 rounded-full font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 glow-blue";
+          badge.innerText = "MODEL ROUTED";
+        }
+
+        document.getElementById('dossier-model').innerText = dossier.model_used || data.model;
+        document.getElementById('dossier-latency').innerText = (dossier.latency_ms || 0) + ' ms';
+        document.getElementById('dossier-cost').innerText = '$' + (dossier.cost_saved_usd || 0.0);
+
+        // Assistant Bubble with clean rendered Markdown
+        chatBox.innerHTML += `
+          <div class="flex items-start space-x-3">
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-xs font-bold mt-1">AI</div>
+            <div class="bg-slate-800/80 p-4 rounded-2xl rounded-tl-none text-sm text-slate-100 max-w-[85%] border border-slate-700/60 shadow-lg prose">
+              ${formattedAnswer}
+              <div class="mt-3 text-[10px] text-slate-400 border-t border-slate-700/40 pt-1.5 flex justify-between not-prose">
+                <span>Model: ${dossier.model_used || data.model}</span>
+                <span>Speed: ${dossier.latency_ms || 0} ms</span>
+              </div>
+            </div>
+          </div>`;
+        chatBox.scrollTop = chatBox.scrollHeight;
+        updateStats();
+
+      } catch (err) {
+        document.getElementById(loaderId).remove();
+        chatBox.innerHTML += `<div class="text-rose-400 text-xs text-center py-2">Error connecting to gateway: ${err.message}</div>`;
+      }
+    }
+
+    async function clearSystemCache() {
+      if (confirm('Clear local cache entries?')) {
+        await fetch('/api/cache/clear', { method: 'POST' });
+        alert('Cache cleared.');
+        updateStats();
+      }
+    }
+
+    setInterval(updateStats, 3000);
+    updateStats();
+  </script>
+</body>
+</html>
